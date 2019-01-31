@@ -3,20 +3,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-## Build the network. Change these parameters if you want
-p = 500
-mean = 0
-std = 0.5
-epochs = 200
-eta = 0.5
-input_dim = 2
-output_dim = 1
-#hidden_layers_depth = 3  # Hidden layer depth
-#hidden_layers_width = 3
-#hidden_layers_dims = [hidden_layers_width for _ in range(hidden_layers_depth)]
-hidden_layers_dims = [3]
-layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and output layer dimensions
-
 
 
 def generate_set1_data(input_dim, p, noise_rate):
@@ -34,6 +20,15 @@ def generate_set1_data(input_dim, p, noise_rate):
             labels_set1[index] = 1
 
     return inputs_set1, labels_set1
+
+def generate_set2_data(input_dim, p, noise_rate):
+    inputs_set2 = np.random.rand(p,input_dim)*2-1
+    labels_set2 = np.ones(p)*(-1)
+
+    for index, state in enumerate(inputs_set2):
+        if state[0] * state[1] > 0 or np.random.rand() < noise_rate:
+            labels_set2[index] = 1
+    return inputs_set2, labels_set2
 
 
 def create_weights(layers_dims, mean, std):
@@ -54,11 +49,8 @@ def create_weights(layers_dims, mean, std):
 
 def create_biases(layers_dims):
     system_biases = []
-    for layer_index, layer_size in enumerate(layers_dims):
-        layer_biases = []
-        for neuron_index in range(layer_size):
-            layer_biases.append(0) 
-        system_biases.append(np.array(layer_biases))
+    for _, layer_size in enumerate(layers_dims):
+        system_biases.append(np.zeros(layer_size))
 
     return np.array(system_biases)
 
@@ -72,7 +64,6 @@ def g_prim(x):
 
 
 
-
 def NN(inputs, labels, weights, biases, layers_dims):
     # propagates inputs through network of neuron layers with specified weights
     # updates the weights according to labeled data
@@ -83,6 +74,7 @@ def NN(inputs, labels, weights, biases, layers_dims):
     output_dim = layers_dims[-1]
     # Array where all layers state for each input data's propagation is saved.
     neuron_states = []
+    
 
 
     for index, input_state in enumerate(inputs):
@@ -98,7 +90,7 @@ def NN(inputs, labels, weights, biases, layers_dims):
             # Calculate the state for each neuron in the layer
             for neuron_index in range(layer_size):
                 #Calculate one neuron state and append it to a list of neuron states for that layer
-                neuron_layer_states.append(np.matmul(neuron_inputs, weights[layer][neuron_index]) + biases[layer][neuron_index])
+                neuron_layer_states.append(np.matmul(neuron_inputs, weights[layer][neuron_index]) - biases[layer][neuron_index])
             
             # set the input for the next layer to be the output of the previous layer
             neuron_inputs = g(neuron_layer_states)
@@ -111,8 +103,7 @@ def NN(inputs, labels, weights, biases, layers_dims):
     # Save all out-values in separate list
     Out = [row[-1][0] for row in neuron_states]
     predicted_labels = np.sign(Out)
-
-
+    
     # Enegy function
     H = np.sum((labels - Out)**2)/(2*p)
     errors = p
@@ -129,7 +120,7 @@ def NN(inputs, labels, weights, biases, layers_dims):
     delta_out = g_prim(np.array(output_state)) * (labels - Out)
 
     # Update the output node's bias
-    biases[-1] = biases[-1] + eta * np.sum(delta_out) / p
+    biases[-1] = biases[-1] - eta * np.sum(delta_out) / p
 
 
 
@@ -153,24 +144,69 @@ def NN(inputs, labels, weights, biases, layers_dims):
         for idx, weight in enumerate(weights[index]):
             weights[index][idx] = weight + eta * np.matmul(delta, [row[index][idx] for row in neuron_states]) / p
 
-    return weights, biases, H, accuracy
+    return predicted_labels, weights, biases, H, accuracy
 
 
 #==================================================================
 
+## Build the network. Change these parameters if you want
+p = 500
+mean = 0
+std = 0.5
+epochs = 1000
+noise_rate = 0
+eta = 0.5
+input_dim = 2
+output_dim = 1
+hidden_layers_dims = [3,3]
+layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and output layer dimensions
+
+
+
 # neural network epoch function starts here
 
 
-inputs, labels = generate_set1_data(input_dim , p, 0.1)
+inputs, labels = generate_set2_data(input_dim , p, noise_rate)
 weights = create_weights(layers_dims, mean, std)
 biases = create_biases([*hidden_layers_dims, output_dim])
 energy = np.zeros(epochs)
 accuracy = np.zeros(epochs)
- 
-for epoch in range(epochs):
-    weights, biases, H, acc = NN(inputs, labels, weights, biases, layers_dims)
-    energy[epoch] = H
-    accuracy[epoch] = acc
+plot_data = 1
+
+
+# Empty variables to store best values
+best_acc = 0
+weights = create_weights(layers_dims, mean, std)
+biases = create_biases([*hidden_layers_dims, output_dim])
+
+for eon in range(10):
+    print(f"Eon no: {eon}")
+
+    for epoch in range(epochs):
+        if epoch%100==0:
+            print(f"Epoch no: {epoch}")
+        predictions, weights, biases, H, acc = NN(inputs, labels, weights, biases, layers_dims)
+        energy[epoch] = H
+        accuracy[epoch] = acc
+        
+
+        if acc > best_acc:
+            best_acc = acc
+            best_biases = biases
+            best_weights = weights
+            best_predictions = predictions
+
+if plot_data:
+    for index, state in enumerate(inputs):
+        if labels[index] == 1:
+            plt.plot(state[0], state[1], 'r.')
+        else:
+            plt.plot(state[0], state[1], 'b.')
+        if predictions[index] == 1:
+            plt.plot(state[0], state[1], 'ko', mfc='none')
+        x1_span = np.linspace(-1,1,100)
+        #x2_span = 
+    plt.show()
 
 i = list(range(epochs))
 
@@ -188,3 +224,15 @@ plt.subplot(1,1,1)
 plt.plot(i, energy, 'r.')
 #plt.subplot(1,1,2)
 plt.show()
+
+if plot_data:
+    for index, state in enumerate(inputs):
+        if labels[index] == 1:
+            plt.plot(state[0], state[1], 'r.')
+        else:
+            plt.plot(state[0], state[1], 'b.')
+        if best_predictions[index] == 1:
+            plt.plot(state[0], state[1], 'ko', mfc='none')
+        x1_span = np.linspace(-1,1,100)
+        #x2_span = 
+    plt.show()
