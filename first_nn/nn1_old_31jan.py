@@ -153,14 +153,12 @@ def NN(inputs, labels, weights, biases, layers_dims):
 p = 500
 mean = 0
 std = 0.5
-batching = True
-epochs = 500
-eons = 10
+epochs = 1000
 noise_rate = 0
 eta = 0.5
 input_dim = 2
 output_dim = 1
-hidden_layers_dims = [2]
+hidden_layers_dims = [3,3]
 layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and output layer dimensions
 
 
@@ -168,70 +166,36 @@ layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and 
 # neural network epoch function starts here
 
 
-inputs, labels = generate_set1_data(input_dim , p, noise_rate)
+inputs, labels = generate_set2_data(input_dim , p, noise_rate)
 weights = create_weights(layers_dims, mean, std)
 biases = create_biases([*hidden_layers_dims, output_dim])
 energy = np.zeros(epochs)
 accuracy = np.zeros(epochs)
-best_acc = 0
 plot_data = 1
-best_epochs = np.zeros(eons)
-best_epochs_acc = np.zeros(eons)
 
-for eon in range(eons):
+
+# Empty variables to store best values
+best_acc = 0
+weights = create_weights(layers_dims, mean, std)
+biases = create_biases([*hidden_layers_dims, output_dim])
+
+for eon in range(10):
     print(f"Eon no: {eon}")
-    # Set new weights and biases for each eon.
-    weights = create_weights(layers_dims, mean, std)
-    biases = create_biases([*hidden_layers_dims, output_dim])
-    best_acc_epoch = 0
+
     for epoch in range(epochs):
         if epoch%100==0:
             print(f"Epoch no: {epoch}")
-        
-        if batching:
-            # pair inputs and labels together to be able to scramble them
-            inputs_labels = zip(inputs, labels)
-            # Scramble the input and label pairs
-            inputs_labels = np.random.permutation(list(inputs_labels)) 
-
-            batches = []
-            predictions = []
-            # Create 50 batches with 10 entries in each
-            for index in range(50):
-                start = index*10
-                end = start+10
-                batches.append(np.array(inputs_labels[start:end]))
-            
-            #if(epoch%100==0):
-                #print(f"Running {len(batches)} batches of length {len(batches[-1])}")
-            
-            for batch in batches:
-                batch_inputs = np.array([row[0] for row in batch])
-                batch_labels = np.array([row[1] for row in batch])
-                predictions_, weights, biases, H_, acc_ = NN(batch_inputs, batch_labels, weights, biases, layers_dims)
-    
-        predictions, weights_, biases_, H, acc = NN(inputs, labels, weights, biases, layers_dims)
+        predictions, weights, biases, H, acc = NN(inputs, labels, weights, biases, layers_dims)
         energy[epoch] = H
         accuracy[epoch] = acc
         
-        if acc > best_acc_epoch:
-            best_acc_epoch = acc
-            best_epochs[eon] = epoch
-            best_epochs_acc[eon] = acc
 
         if acc > best_acc:
             best_acc = acc
             best_biases = biases
             best_weights = weights
             best_predictions = predictions
-            best_eon = eon
-            best_epoch = epoch
-            print(f"Best epoch: {best_epoch}")
-            print(f"Best eon: {best_eon}")
 
-print(f"Best epochs: {best_epochs}")
-print(f"Best ep acc: {best_epochs_acc}")
-print(f"Best accuracy of {best_acc} found in eon {best_eon} in epoch {best_epoch}")
 if plot_data:
     for index, state in enumerate(inputs):
         if labels[index] == 1:
@@ -241,11 +205,9 @@ if plot_data:
         if predictions[index] == 1:
             plt.plot(state[0], state[1], 'ko', mfc='none')
         x1_span = np.linspace(-1,1,100)
-    for idx, w in enumerate(best_weights[0]):
-        x2_span = (-w[0] * x1_span + best_biases[0][idx])/w[1]
-        plt.plot(x1_span, x2_span, "k")
-        print(f"Slope gradient {idx}: {-w[0]/w[1]}")
+        #x2_span = 
     plt.show()
+
 i = list(range(epochs))
 
 #plt.plot(i, energy, 'b.')
@@ -263,22 +225,14 @@ plt.plot(i, energy, 'r.')
 #plt.subplot(1,1,2)
 plt.show()
 
-print(f"weights: {weights}")
-print(f"biases: {biases}")
-
-#Plot the data for best predicted labels
 if plot_data:
     for index, state in enumerate(inputs):
         if labels[index] == 1:
             plt.plot(state[0], state[1], 'r.')
         else:
             plt.plot(state[0], state[1], 'b.')
-
         if best_predictions[index] == 1:
             plt.plot(state[0], state[1], 'ko', mfc='none')
         x1_span = np.linspace(-1,1,100)
-    for idx, w in enumerate(best_weights[0]):
-        x2_span = (-w[0] * x1_span + best_biases[0][idx])/w[1]
-        plt.plot(x1_span, x2_span, "k")
-        print(f"Slope gradient {idx}: {-w[0]/w[1]} with bias {best_biases[0][idx]}")
+        #x2_span = 
     plt.show()
