@@ -68,13 +68,21 @@ def create_weights(layers_dims, mean, std):
         weights.append(layer_weights)
     return np.array(weights)
 
+def create_weights2(layers_dims, mean, std):
+    layer_weights = []
+    # Create a list of weight matrixes. one entry per layer. 
+    # The size of the matrix is nodes in layern+1 x layer-n
+    for index in range(len(layers_dims)-1):
+        layer_weights.append(np.random.normal(mean, std, (layers_dims[index+1], layers_dims[index])))
+
+    return layer_weights
+
 def create_biases(layers_dims):
     system_biases = []
     for _, layer_size in enumerate(layers_dims):
         system_biases.append(np.zeros(layer_size))
 
     return np.array(system_biases)
-
 
 
 def g(x): 
@@ -95,35 +103,19 @@ def NN(inputs, labels, weights, biases, layers_dims):
     output_dim = layers_dims[-1]
     # Array where all layers state for each input data's propagation is saved.
     neuron_states = []
+    neuron_inputs = inputs
     
-
-
-    for index, input_state in enumerate(inputs):
-        # First input for each input is the input. This updates on each layer.
-        neuron_inputs = input_state
-        neuron_layers_row = []
-        
-        # Loop through each layer
-        for layer, layer_size in enumerate([*hidden_layers_dims, output_dim]):
-
-            neuron_layer_states = []
-
-            # Calculate the state for each neuron in the layer
-            for neuron_index in range(layer_size):
-                #Calculate one neuron state and append it to a list of neuron states for that layer
-                neuron_layer_states.append(np.matmul(neuron_inputs, weights[layer][neuron_index]) - biases[layer][neuron_index])
-            
-            # set the input for the next layer to be the output of the previous layer
-            neuron_inputs = g(neuron_layer_states)
-            # Add the row of neuron states for the layer to a list
-            neuron_layers_row.append(np.array(neuron_layer_states))
-            
-        # Add all neuron states in all layers to a list
-        neuron_states.append(np.array(neuron_layers_row))
-
-    # Save all out-values in separate list
-    Out = [row[-1][0] for row in neuron_states]
+    for layer, layer_size in enumerate([*hidden_layers_dims, output_dim]):
+        # Calculate the state for each layer as a function of weights and all the input data.
+        a = []
+        for mu, input_state in enumerate(neuron_inputs):
+            a.append(np.matmul(weights[layer], input_state) - biases[layer])
+        a = np.array(a)
+        neuron_states.append(a)
+        neuron_inputs = g(a)
+    Out = a
     predicted_labels = np.sign(Out)
+
     
     # Enegy function
     H = np.sum((labels - Out)**2)/(2*p)
@@ -137,47 +129,53 @@ def NN(inputs, labels, weights, biases, layers_dims):
    
 
 
-    # calculate the first error delta^{(L)}
-    output_state = [row[-1][0] for row in neuron_states]
-
-
-    delta_out = g_prim(np.array(output_state)) * (labels - Out)
+    # calculate the first error delta for the last layer, i.e the output node.
+    output_state =  neuron_states[-1]
+    delta_out = g_prim(output_state) * (labels.reshape(p,1) - Out)
+   
     
-
     # Update the output node's bias
     biases[-1] = biases[-1] - eta * np.sum(delta_out) / p
 
-
-
+    #-----------------------------------------------------------------
+    # Backpropagation
+    #-----------------------------------------------------------------
+    # Calculate delta for all nodes
     delta_hidden_layers = []
     old_delta = delta_out
-    # Calculate delta for each layer
-    input(f"Delta0 is {delta_out.shape}")
-    for layer, _ in enumerate(hidden_layers_dims, 2):
-        layer = layer*(-1) # Negative index to iterate backwards through the layers
+    for layer in range(-1, -len(hidden_layers_dims)-1, -1):
+        layer_deltas = []
         new_delta = []
-        print(f"Our layers are {hidden_layers_dims}, Active layer: {layer}")
-        print(F"Weights shape: {weights}")
-        print(f"Neuron states: {neuron_states[0]}")
-        print(f"Active neurons: {neuron_states[0][layer]}")
-        print(f"Active weights: {weights[layer+1][0]}")
-        print(f"Active old_delta: {old_delta[0]}")
-        input(f"...")
-        for index in range(p):        
-            new_delta.append( old_delta[index] * np.matmul(weights[layer+1][0], g_prim(neuron_states[index][layer])))
-            
-        
-        # Insert to beginning of list to keep weight ordered from left to right of the neural network
-        delta_hidden_layers.insert(0, new_delta)
+        a_out = g_prim(neuron_states[layer-1])
+
+        # For each state mu, calculate the delta by transposing the weight matrix for each layer and multiplying it by
+        # a matrix with the neuron states a=g_prim(h) as diagonal values.
+        for mu in range(len(old_delta)):
+            d = old_delta[mu].T*np.matmul(weights[layer], np.diag(a_out[mu]))
+            new_delta.append(d)
+            layer_deltas.append(np.sum(d, axis=0))
+
         old_delta = new_delta
-
-    #update weights
+        # Insert calculated delta values for layer at the beginning of a list.
+        delta_hidden_layers.insert(0, layer_deltas)
+    
+    # Update weights and biases
+    neuron_outputs = inputs
     for index, delta in enumerate(delta_hidden_layers):
-        biases[index] = biases[index] - eta * np.sum(delta) / p
 
-        for idx, weight in enumerate(weights[index]):
-            weights[index][idx] = weight + eta * np.matmul(delta, [row[index][idx] for row in neuron_states]) / p
+        delta = np.hsplit(np.array(delta), hidden_layers_dims[index])
+        neuron_outputs = np.hsplit(neuron_outputs, len(neuron_outputs[0]))
+        
+        for i in range(len(neuron_outputs)):
+            neuron_output = neuron_outputs[i]
+            for j in range(len(delta)):
+                # Håll output fast, iterera igenom alla delta och uppdatera varje vikt radvis. 
+                weights[index][j][i] += eta * np.matmul(delta[j].T, neuron_output)[0] / p
+                biases[index][j] -= eta * np.sum(delta[j]) / p
+        
+        
 
+        neuron_outputs= g(neuron_states[i])
     return predicted_labels, weights, biases, H, accuracy
 
 
@@ -187,15 +185,15 @@ def NN(inputs, labels, weights, biases, layers_dims):
 p = 500
 mean = 0
 std = 0.5
-batching = 0
-epochs = 1
+batching = 1
+epochs = 500
 eons = 1
 noise_rate = 0
 eta = 0.5
 input_dim = 2
 output_dim = 1
-axis = [-1, 1]
-hidden_layers_dims = [2, 3, 2]
+axis = [-1.2, 1.2]
+hidden_layers_dims = [3,3]
 layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and output layer dimensions
 
 
@@ -203,27 +201,24 @@ layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and 
 # neural network epoch function starts here
 
 
-inputs, labels = generate_set1_data(input_dim , p, noise_rate)
-weights = create_weights(layers_dims, mean, std)
-biases = create_biases([*hidden_layers_dims, output_dim])
+inputs, labels = generate_set2_data(input_dim , p, noise_rate)
 energy = np.zeros(epochs)
 accuracy = np.zeros(epochs)
 best_acc = 0
 lowest_energy = 9999
 plot_data = 1
-plot_best_data = 0
+plot_best_data = 1
 best_epochs = np.zeros(eons)
 best_epochs_acc = np.zeros(eons)
-starting_weights = [2]
+
 
 for eon in range(eons):
     print(f"Eon no: {eon}")
     # Set new weights and biases for each eon.
-    weights = create_weights(layers_dims, mean, std)
+    weights = create_weights2(layers_dims, mean, std)
     biases = create_biases([*hidden_layers_dims, output_dim])
     best_acc_epoch = 0
     lowest_energy_epoch = 0
-    starting_weights.append(weights)
     for epoch in range(epochs):
         if epoch%100==0:
             print(f"Epoch no: {epoch}")
