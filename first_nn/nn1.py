@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from timeit import default_timer as timer
 
 
 def generate_set0_data(input_dim, p, noise_rate):
@@ -17,12 +18,10 @@ def generate_set0_data(input_dim, p, noise_rate):
 def generate_set1_data(input_dim, p, noise_rate):
     # GEnerate a set of points and assign them to red category if they are within 0.2 units from a -45 degree line in the middle of the set
     inputs_set1 = np.random.rand(p, input_dim)*2-1
-
+    labels_set1=np.ones(p)*(-1)
+    
     n = (np.array([0.5, 0.5]) , np.array([0.5, 0.5]))
     c = (0.2, -0.2)
-
-
-    labels_set1=np.ones(p)*(-1)
 
     for index, state in enumerate(inputs_set1):
         if( np.dot(n[0], state) + c[0] > 0 and np.dot(n[0], state) + c[1] < 0 or np.random.rand() < noise_rate):
@@ -99,6 +98,7 @@ def NN(inputs, labels, weights, biases, layers_dims):
     # # neuron_state = g( [x1, x2] * [w1, w2] - bias )
 
     p = len(inputs)
+    
     hidden_layers_dims = layers_dims[:][1:-1]
     output_dim = layers_dims[-1]
     # Array where all layers state for each input data's propagation is saved.
@@ -118,9 +118,10 @@ def NN(inputs, labels, weights, biases, layers_dims):
 
     
     # Enegy function
-    H = np.sum((labels - Out)**2)/(2*p)
-    correct_predictions = 0
+    H = np.sum((labels - np.squeeze(Out))**2)/(2*p)
     
+    
+    correct_predictions = 0
     for index, label in enumerate(labels):
         if label == predicted_labels[index]:
             correct_predictions +=1
@@ -186,14 +187,14 @@ p = 500
 mean = 0
 std = 0.5
 batching = 1
-epochs = 500
-eons = 1
+epochs = 100
+eons = 10
 noise_rate = 0
 eta = 0.5
 input_dim = 2
 output_dim = 1
 axis = [-1.2, 1.2]
-hidden_layers_dims = [3,3]
+hidden_layers_dims = [2]
 layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and output layer dimensions
 
 
@@ -201,7 +202,7 @@ layers_dims = [input_dim, *hidden_layers_dims, output_dim]  # Input, hidden and 
 # neural network epoch function starts here
 
 
-inputs, labels = generate_set2_data(input_dim , p, noise_rate)
+inputs, labels = generate_set1_data(input_dim , p, noise_rate)
 energy = np.zeros(epochs)
 accuracy = np.zeros(epochs)
 best_acc = 0
@@ -213,13 +214,21 @@ best_epochs_acc = np.zeros(eons)
 
 
 for eon in range(eons):
+    if best_acc > 0.9:
+        break
+
     print(f"Eon no: {eon}")
     # Set new weights and biases for each eon.
     weights = create_weights2(layers_dims, mean, std)
+    
     biases = create_biases([*hidden_layers_dims, output_dim])
     best_acc_epoch = 0
     lowest_energy_epoch = 0
+    
+   
     for epoch in range(epochs):
+        if best_acc_epoch > 0.95:
+            break
         if epoch%100==0:
             print(f"Epoch no: {epoch}")
         
@@ -244,8 +253,8 @@ for eon in range(eons):
                 batch_inputs = np.array([row[0] for row in batch])
                 batch_labels = np.array([row[1] for row in batch])
                 predictions_, weights, biases, H_, acc_ = NN(batch_inputs, batch_labels, weights, biases, layers_dims)
-    
         predictions, weights, biases, H, acc = NN(inputs, labels, weights, biases, layers_dims)
+
         energy[epoch] = H
         accuracy[epoch] = acc
         
